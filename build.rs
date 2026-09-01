@@ -2,6 +2,16 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+/// Rust keywords that cannot be used as bare identifiers. Icon names that
+/// snake-case into one of these must be emitted as raw identifiers (`r#...`).
+const RUST_KEYWORDS: &[&str] = &[
+    "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for",
+    "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
+    "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where",
+    "while", "async", "await", "dyn", "abstract", "become", "box", "do", "final", "macro",
+    "override", "priv", "typeof", "unsized", "virtual", "yield", "try",
+];
+
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
@@ -40,8 +50,13 @@ fn main() {
                 svg_path.display()
             );
         }
+        // Watch each individual icon so edits reliably trigger a rebuild.
+        println!("cargo:rerun-if-changed={}", svg_path.display());
+
         let fn_name = to_snake_case(name);
-        let const_name = fn_name.to_uppercase();
+        // The bytes constant is derived from the unescaped snake name so it
+        // stays a plain identifier even when the function is a raw identifier.
+        let const_name = name.replace('-', "_").to_uppercase();
         generated.push_str(&format!(
             "    /// Renders the Lucide `{name}` icon as an SVG widget.\n"
         ));
@@ -68,7 +83,6 @@ fn main() {
         .unwrap_or_else(|e| panic!("failed to write generated.rs: {e}"));
 
     println!("cargo:rerun-if-changed=build.toml");
-    println!("cargo:rerun-if-changed=icons");
     println!("cargo:rerun-if-changed=build.rs");
 }
 
@@ -77,6 +91,13 @@ struct Config {
     icons: Vec<String>,
 }
 
+/// Converts a kebab-case icon name to a valid Rust identifier, escaping it as a
+/// raw identifier (`r#...`) when it collides with a Rust keyword.
 fn to_snake_case(name: &str) -> String {
-    name.replace('-', "_")
+    let snake = name.replace('-', "_");
+    if RUST_KEYWORDS.contains(&snake.as_str()) {
+        format!("r#{snake}")
+    } else {
+        snake
+    }
 }

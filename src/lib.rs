@@ -67,12 +67,16 @@ pub use themed::{themed_icon, ThemedIcon};
 /// This lets you render your own custom SVGs through the same rendering path as
 /// the generated Lucide icons, without them being part of the generated set.
 ///
+/// Accepts any bytes that can be turned into a `'static` SVG handle (a
+/// `&'static [u8]`, an owned `Vec<u8>`, etc.). The returned widget is
+/// `'static` because the handle owns its bytes.
+///
 /// # Example
 ///
 /// ```no_run
 /// let svg = lucide_iced::svg_from_bytes(b"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10'/></svg>".as_slice());
 /// ```
-pub fn svg_from_bytes(bytes: &'static [u8]) -> Svg<'static> {
+pub fn svg_from_bytes(bytes: impl Into<std::borrow::Cow<'static, [u8]>>) -> Svg<'static> {
     Svg::new(Handle::from_memory(bytes))
 }
 
@@ -101,9 +105,19 @@ pub fn mirror_svg(bytes: &[u8]) -> Svg<'static> {
 /// `viewBox`.
 ///
 /// Returns a new owned byte buffer. The input is not modified.
+///
+/// This is a lightweight string transform, not a full SVG parser. It assumes
+/// the input is well-formed UTF-8 and has the conventional structure
+/// `<svg ...>...content...</svg>` with a `viewBox` attribute on the root
+/// element. It works for all Lucide icons (which are uniformly
+/// `viewBox="0 0 24 24"`), but may not handle exotic SVGs correctly.
 pub fn mirror_bytes(bytes: &[u8]) -> Vec<u8> {
-    let text = String::from_utf8_lossy(bytes);
-    let view_box = extract_view_box(&text);
+    let text = match std::str::from_utf8(bytes) {
+        Ok(text) => text,
+        // Non-UTF-8 input cannot be mirrored safely; return it unchanged.
+        Err(_) => return bytes.to_vec(),
+    };
+    let view_box = extract_view_box(text);
     let width = view_box.map(|(w, _)| w).unwrap_or(24.0);
 
     let inner_start = text.find('>').map(|i| i + 1).unwrap_or(0);
@@ -111,9 +125,10 @@ pub fn mirror_bytes(bytes: &[u8]) -> Vec<u8> {
 
     let mut out = String::with_capacity(text.len() + 64);
     out.push_str(&text[..inner_start]);
-    out.push_str(&format!(
-        "<g transform=\"translate({width},0) scale(-1,1)\">"
-    ));
+    // Write the transform directly into the output buffer to avoid a
+    // temporary `String` from `format!`.
+    use std::fmt::Write as _;
+    let _ = write!(out, "<g transform=\"translate({width},0) scale(-1,1)\">");
     out.push_str(&text[inner_start..inner_end]);
     out.push_str("</g>");
     out.push_str(&text[inner_end..]);
@@ -121,18 +136,30 @@ pub fn mirror_bytes(bytes: &[u8]) -> Vec<u8> {
 }
 
 /// Extracts the `(width, height)` from an SVG `viewBox="x y w h"` attribute.
+///
+/// Accepts both double- and single-quoted `viewBox` values. Returns `None` if
+/// the attribute is missing or does not contain at least four numeric values.
 fn extract_view_box(text: &str) -> Option<(f32, f32)> {
     let attr = text.find("viewBox")?;
     let rest = &text[attr..];
-    let open = rest.find('"')? + 1;
-    let close = rest[open..].find('"')? + open;
-    let values: Vec<f32> = rest[open..close]
-        .split_whitespace()
-        .filter_map(|v| v.parse().ok())
-        .collect();
-    match values.as_slice() {
-        [_, _, w, h] => Some((*w, *h)),
-        _ => None,
+    // Skip the attribute name, then find the opening quote (either kind).
+    let open = rest.find(['"', '\''])? + 1;
+    let close = rest[open..].find(['"', '\''])? + open;
+    // Parse into a fixed-size array to avoid a heap allocation. A `viewBox`
+    // always has exactly four values; anything else is treated as missing.
+    let mut values = [0.0f32; 4];
+    let mut count = 0;
+    for v in rest[open..close].split_whitespace() {
+        if count == 4 {
+            return None;
+        }
+        values[count] = v.parse().ok()?;
+        count += 1;
+    }
+    if count == 4 {
+        Some((values[2], values[3]))
+    } else {
+        None
     }
 }
 
@@ -188,6 +215,65 @@ mod tests {
     #[test]
     fn mirror_svg_constructs() {
         let _ = crate::mirror_svg(crate::bytes::HEART);
+    }
+
+    #[test]
+    fn extract_view_box_handles_single_quotes() {
+        let svg = "<svg viewBox='0 0 32 48'></svg>";
+        assert_eq!(crate::extract_view_box(svg), Some((32.0, 48.0)));
+    }
+
+    #[test]
+    fn extract_view_box_handles_double_quotes() {
+        let svg = "<svg viewBox=\"0 0 24 24\"></svg>";
+        assert_eq!(crate::extract_view_box(svg), Some((24.0, 24.0)));
+    }
+
+    #[test]
+    fn extract_view_box_missing_returns_none() {
+        assert_eq!(crate::extract_view_box("<svg></svg>"), None);
+    }
+
+    #[test]
+    fn extract_view_box_rejects_malformed_values() {
+        // Too few values.
+        assert_eq!(
+            crate::extract_view_box("<svg viewBox='0 0 24'></svg>"),
+            None
+        );
+        // Too many values.
+        assert_eq!(
+            crate::extract_view_box("<svg viewBox='0 0 24 24 99'></svg>"),
+            None
+        );
+        // Non-numeric values.
+        assert_eq!(
+            crate::extract_view_box("<svg viewBox='a b c d'></svg>"),
+            None
+        );
+    }
+
+    #[test]
+    fn mirror_bytes_passes_through_non_utf8() {
+        // Invalid UTF-8 must be returned unchanged rather than corrupted.
+        let bytes = [0xff, 0xfe, 0x00, 0x01];
+        assert_eq!(crate::mirror_bytes(&bytes), bytes);
+    }
+
+    #[cfg(feature = "font")]
+    #[test]
+    fn bundled_font_is_a_valid_ttf() {
+        // Guards against the CI font download silently producing garbage.
+        assert_eq!(
+            &crate::LUCIDE_FONT_BYTES[..4],
+            &[0x00, 0x01, 0x00, 0x00],
+            "fonts/lucide.ttf does not start with the TTF signature"
+        );
+        assert!(
+            crate::LUCIDE_FONT_BYTES.len() > 100_000,
+            "fonts/lucide.ttf is suspiciously small ({} bytes)",
+            crate::LUCIDE_FONT_BYTES.len()
+        );
     }
 
     #[test]
