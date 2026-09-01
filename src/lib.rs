@@ -58,6 +58,10 @@ pub use generated::icon;
 /// The generated per-icon raw SVG bytes.
 pub use generated::bytes;
 
+mod themed;
+
+pub use themed::{themed_icon, ThemedIcon};
+
 /// Builds an [`iced::widget::Svg`] widget from arbitrary SVG bytes.
 ///
 /// This lets you render your own custom SVGs through the same rendering path as
@@ -70,6 +74,66 @@ pub use generated::bytes;
 /// ```
 pub fn svg_from_bytes(bytes: &'static [u8]) -> Svg<'static> {
     Svg::new(Handle::from_memory(bytes))
+}
+
+/// Mirrors raw SVG bytes horizontally around the vertical center of the
+/// `viewBox`, returning a new [`iced::widget::Svg`] widget.
+///
+/// Iced's [`Svg`] widget has no flip/scale-axis API, so this wraps the SVG's
+/// inner content in a `<g transform="translate(W,0) scale(-1,1)">` group, where
+/// `W` is the width from the `viewBox`. The result is a new SVG widget with the
+/// same dimensions but mirrored.
+///
+/// Prefer [`mirror_bytes`] when you need the raw bytes (e.g. to feed a themed
+/// icon widget) rather than a plain [`Svg`] widget.
+///
+/// # Example
+///
+/// ```no_run
+/// let heart = lucide_iced::mirror_svg(lucide_iced::bytes::HEART);
+/// ```
+pub fn mirror_svg(bytes: &[u8]) -> Svg<'static> {
+    let mirrored = mirror_bytes(bytes);
+    Svg::new(Handle::from_memory(mirrored))
+}
+
+/// Mirrors raw SVG bytes horizontally around the vertical center of the
+/// `viewBox`.
+///
+/// Returns a new owned byte buffer. The input is not modified.
+pub fn mirror_bytes(bytes: &[u8]) -> Vec<u8> {
+    let text = String::from_utf8_lossy(bytes);
+    let view_box = extract_view_box(&text);
+    let width = view_box.map(|(w, _)| w).unwrap_or(24.0);
+
+    let inner_start = text.find('>').map(|i| i + 1).unwrap_or(0);
+    let inner_end = text.rfind('<').unwrap_or(text.len());
+
+    let mut out = String::with_capacity(text.len() + 64);
+    out.push_str(&text[..inner_start]);
+    out.push_str(&format!(
+        "<g transform=\"translate({width},0) scale(-1,1)\">"
+    ));
+    out.push_str(&text[inner_start..inner_end]);
+    out.push_str("</g>");
+    out.push_str(&text[inner_end..]);
+    out.into_bytes()
+}
+
+/// Extracts the `(width, height)` from an SVG `viewBox="x y w h"` attribute.
+fn extract_view_box(text: &str) -> Option<(f32, f32)> {
+    let attr = text.find("viewBox")?;
+    let rest = &text[attr..];
+    let open = rest.find('"')? + 1;
+    let close = rest[open..].find('"')? + open;
+    let values: Vec<f32> = rest[open..close]
+        .split_whitespace()
+        .filter_map(|v| v.parse().ok())
+        .collect();
+    match values.as_slice() {
+        [_, _, w, h] => Some((*w, *h)),
+        _ => None,
+    }
 }
 
 /// The Lucide icon font bytes, available when the `font` feature is enabled.
@@ -111,6 +175,19 @@ mod tests {
             let text = String::from_utf8_lossy(bytes);
             assert!(text.contains("<svg"), "expected SVG markup, got: {text}");
         }
+    }
+
+    #[test]
+    fn mirror_bytes_wraps_in_group() {
+        let mirrored = crate::mirror_bytes(crate::bytes::HEART);
+        let text = String::from_utf8_lossy(&mirrored);
+        assert!(text.contains("<g transform=\"translate(24,0) scale(-1,1)\">"));
+        assert!(text.contains("</g>"));
+    }
+
+    #[test]
+    fn mirror_svg_constructs() {
+        let _ = crate::mirror_svg(crate::bytes::HEART);
     }
 
     #[test]

@@ -30,6 +30,11 @@ fn view(_state: &State) -> Element<'_, Message> {
         icon(lucide_iced::icon::user().width(32).height(32)),
         icon(lucide_iced::icon::search().width(32).height(32)),
         icon(lucide_iced::icon::star().width(32).height(32)),
+        icon(
+            lucide_iced::mirror_svg(lucide_iced::bytes::HEART)
+                .width(32)
+                .height(32)
+        ),
     ]
     .spacing(12);
 
