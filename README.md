@@ -13,7 +13,8 @@ Only the icons you reference end up in your binary. Each icon listed in
 - Type-safe. Generated per-icon functions like `icon::heart()`.
 - Theme-aware. `themed_icon` recolors on hover and disabled states like text.
 - Mirroring. `mirror_svg` flips an icon horizontally.
-- Custom icons. Render your own SVGs through the same code path with
+- Custom icons. Drop SVGs in a folder and they are auto-registered as
+  `custom_icons::icon::*()` functions, or render a single SVG at runtime with
   `svg_from_bytes`.
 - Optional font. Bundle the Lucide TTF for text-glyph rendering (opt-in `font`
   feature).
@@ -116,8 +117,50 @@ let mirrored = lucide_iced::mirror_bytes(lucide_iced::bytes::HEART);
 
 ## Custom icons
 
-Render your own SVG through the library's rendering path. `svg_from_bytes`
-accepts a `&'static [u8]` or an owned `Vec<u8>`:
+There are two ways to use your own SVGs.
+
+### Auto-register a folder of icons
+
+Enable the `build` feature and add `lucide-iced` as a build-dependency:
+
+```toml
+[dependencies]
+lucide-iced = "0.1"
+
+[build-dependencies]
+lucide-iced = { version = "0.1", features = ["build"] }
+```
+
+In your `build.rs`, point at a folder of SVGs:
+
+```rust
+fn main() {
+    lucide_iced::build::register_icons("icons/custom");
+}
+```
+
+In your crate, include the generated module:
+
+```rust
+pub mod custom_icons {
+    include!(env!("LUCIDE_ICED_CUSTOM_ICONS"));
+}
+```
+
+Every `.svg` in the folder becomes a `custom_icons::icon::<name>()` function and
+a `custom_icons::bytes::<NAME>` constant, generated the same way as the built-in
+Lucide icons. Drop a file in, rebuild, and it is registered. The folder is
+watched, so edits trigger a rebuild.
+
+Two SVGs that map to the same identifier (for example `foo-bar.svg` and
+`foo_bar.svg`) fail the build with a clear error. Icon names that collide with
+Rust keywords (`box`, `move`, `type`) are generated as raw identifiers, so call
+them with an `r#` prefix.
+
+### Render a single SVG at runtime
+
+`svg_from_bytes` builds a widget from arbitrary SVG bytes without touching the
+build system. It accepts a `&'static [u8]` or an owned `Vec<u8>`:
 
 ```rust
 let svg = lucide_iced::svg_from_bytes(b"<svg .../>".as_slice());
