@@ -39,8 +39,10 @@
 
 #![forbid(unsafe_code)]
 
-use iced::advanced::svg::Handle;
-use iced::widget::Svg;
+/// Re-exported so generated custom-icon code can reference the widget types
+/// through this crate instead of requiring a direct `iced` dependency.
+pub use iced::advanced::svg::Handle;
+pub use iced::widget::Svg;
 
 /// The generated per-icon functions and raw SVG bytes.
 ///
@@ -61,6 +63,12 @@ pub use generated::bytes;
 mod themed;
 
 pub use themed::{themed_icon, ThemedIcon};
+
+/// Build-script helpers for registering custom icons from a folder.
+///
+/// Only compiled when the `build` feature is enabled. See [`build::register_icons`].
+#[cfg(feature = "build")]
+pub mod build;
 
 /// Builds an [`iced::widget::Svg`] widget from arbitrary SVG bytes.
 ///

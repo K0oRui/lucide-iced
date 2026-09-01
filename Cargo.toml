@@ -31,6 +31,8 @@ serde = { version = "1", features = ["derive"] }
 [features]
 default = []
 font = []
+# Exposes the `build` module with `register_icons`, for use as a build-dependency.
+build = []
 
 [dev-dependencies]
 iced = { version = "0.14", features = ["wgpu", "tiny-skia"] }
