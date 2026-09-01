@@ -1,0 +1,17 @@
+{
+  "$schema": "../icon.schema.json",
+  "contributors": [
+    "danielbayley"
+  ],
+  "use-cases": [],
+  "tags": [
+    "pc",
+    "chassis",
+    "codespaces"
+  ],
+  "categories": [
+    "devices",
+    "development",
+    "gaming"
+  ]
+}
