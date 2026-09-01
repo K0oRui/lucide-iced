@@ -16,18 +16,28 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    let config_path = manifest_dir.join("build.toml");
-    let config = fs::read_to_string(&config_path).unwrap_or_else(|e| {
-        panic!(
-            "failed to read build.toml at {}: {e}",
-            config_path.display()
-        )
-    });
-
-    let config: Config =
-        toml::from_str(&config).unwrap_or_else(|e| panic!("failed to parse build.toml: {e}"));
-
     let icons_dir = manifest_dir.join("icons");
+    if !icons_dir.is_dir() {
+        panic!("icons directory not found at {}", icons_dir.display());
+    }
+
+    // Watch the whole folder so adding/removing/editing an SVG triggers a rebuild.
+    println!("cargo:rerun-if-changed={}", icons_dir.display());
+
+    let mut names: Vec<String> = fs::read_dir(&icons_dir)
+        .unwrap_or_else(|e| {
+            panic!(
+                "failed to read icons directory {}: {e}",
+                icons_dir.display()
+            )
+        })
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.extension().map(|x| x == "svg").unwrap_or(false))
+        .filter_map(|p| p.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .collect();
+    names.sort();
+
     let icons_dir_str = icons_dir.to_string_lossy().replace('\\', "/");
 
     let mut generated = String::new();
@@ -42,21 +52,22 @@ fn main() {
     bytes.push_str("/// The generated per-icon raw SVG bytes.\n");
     bytes.push_str("pub mod bytes {\n\n");
 
-    for name in &config.icons {
-        let svg_path = icons_dir.join(format!("{name}.svg"));
-        if !svg_path.exists() {
-            panic!(
-                "icon '{name}' listed in build.toml has no matching file at {}",
-                svg_path.display()
-            );
-        }
-        // Watch each individual icon so edits reliably trigger a rebuild.
-        println!("cargo:rerun-if-changed={}", svg_path.display());
-
+    let mut seen: Vec<String> = Vec::new();
+    for name in &names {
         let fn_name = to_snake_case(name);
         // The bytes constant is derived from the unescaped snake name so it
         // stays a plain identifier even when the function is a raw identifier.
         let const_name = name.replace('-', "_").to_uppercase();
+
+        // Detect collisions: two files mapping to the same identifier.
+        if seen.contains(&fn_name) {
+            panic!(
+                "multiple SVGs in {} map to the generated identifier `{fn_name}`",
+                icons_dir.display()
+            );
+        }
+        seen.push(fn_name.clone());
+
         generated.push_str(&format!(
             "    /// Renders the Lucide `{name}` icon as an SVG widget.\n"
         ));
@@ -82,13 +93,7 @@ fn main() {
     fs::write(&generated_path, generated)
         .unwrap_or_else(|e| panic!("failed to write generated.rs: {e}"));
 
-    println!("cargo:rerun-if-changed=build.toml");
     println!("cargo:rerun-if-changed=build.rs");
-}
-
-#[derive(serde::Deserialize)]
-struct Config {
-    icons: Vec<String>,
 }
 
 /// Converts a kebab-case icon name to a valid Rust identifier, escaping it as a

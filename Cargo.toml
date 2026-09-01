@@ -1,6 +1,6 @@
 [package]
 name = "lucide-iced"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Compile-time tree-shaken Lucide icons for the Iced GUI framework"
@@ -12,9 +12,7 @@ readme = "README.md"
 build = "build.rs"
 include = [
     "src/**",
-    "examples/**",
     "build.rs",
-    "build.toml",
     "icons/**",
     "fonts/**",
     "LICENSE",
@@ -24,10 +22,6 @@ include = [
 [dependencies]
 iced = { version = "0.14", default-features = false, features = ["svg", "advanced", "thread-pool"] }
 
-[build-dependencies]
-toml = "0.8"
-serde = { version = "1", features = ["derive"] }
-
 [features]
 default = []
 font = []
@@ -36,7 +30,3 @@ build = []
 
 [dev-dependencies]
 iced = { version = "0.14", features = ["wgpu", "tiny-skia"] }
-
-[[example]]
-name = "demo"
-path = "examples/demo/main.rs"

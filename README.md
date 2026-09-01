@@ -1,11 +1,14 @@
 # lucide-iced
 
+[![crates.io](https://img.shields.io/crates/v/lucide-iced)](https://crates.io/crates/lucide-iced)
+
 Compile-time tree-shaken [Lucide](https://lucide.dev) icons for the
 [Iced](https://iced.rs) GUI framework.
 
-Only the icons you reference end up in your binary. Each icon listed in
-`build.toml` generates a type-safe function that returns an
-`iced::widget::Svg` widget. No runtime file reads, no icon font required.
+Every Lucide icon is available as a type-safe function that returns an
+`iced::widget::Svg` widget. Only the icons you actually reference are compiled
+into your binary (dead-code elimination strips the rest), so there is no runtime
+file read and no icon font required.
 
 ## Features
 
@@ -27,7 +30,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-lucide-iced = "0.1"
+lucide-iced = "0.2"
 ```
 
 Then use the icons in your `view()`:
@@ -40,20 +43,12 @@ fn view() -> iced::Element<'static, ()> {
 }
 ```
 
-### Choosing which icons to include
+### Which icons are available
 
-The icons are chosen in the crate's `build.toml`:
-
-```toml
-icons = ["heart", "settings", "trash-2", "user"]
-```
-
-Each name must have a matching file at `icons/<name>.svg`. The build script
-fails with a clear message if one is missing.
-
-`build.toml` lives in the `lucide-iced` crate itself, not in your project. For
-a published dependency the icon set is fixed at publish time. To pick your own
-set, fork the crate and edit `build.toml`, or vendor it.
+Every Lucide icon is available. The full set is generated from the `icons/`
+folder at build time, and only the icons you reference are compiled into your
+binary. To find an icon name, browse the [Lucide icon list](https://lucide.dev/icons)
+or the `icons/` folder in this crate.
 
 ### Icon names that collide with Rust keywords
 
@@ -125,10 +120,10 @@ Enable the `build` feature and add `lucide-iced` as a build-dependency:
 
 ```toml
 [dependencies]
-lucide-iced = "0.1"
+lucide-iced = "0.2"
 
 [build-dependencies]
-lucide-iced = { version = "0.1", features = ["build"] }
+lucide-iced = { version = "0.2", features = ["build"] }
 ```
 
 In your `build.rs`, point at a folder of SVGs:
@@ -172,7 +167,7 @@ Enable the `font` feature to bundle the Lucide TTF:
 
 ```toml
 [dependencies]
-lucide-iced = { version = "0.1", features = ["font"] }
+lucide-iced = { version = "0.2", features = ["font"] }
 ```
 
 Register the font with Iced and render icons as text glyphs:
@@ -191,8 +186,7 @@ when the `font` feature is enabled, and it adds about 850 KB to your binary.
 
 The included GitHub Action (`.github/workflows/update-icons.yml`) runs daily and
 on manual dispatch. It fetches the latest Lucide release, syncs `icons/` and
-`fonts/lucide.ttf`, flags any icons referenced in `build.toml` that were removed
-upstream, and opens a pull request for review.
+`fonts/lucide.ttf`, and opens a pull request for review.
 
 ## Minimum supported Rust version
 

@@ -69,23 +69,6 @@ jobs:
           fi
           echo "Font validated: $SIZE bytes"
 
-      - name: Detect removed icons referenced in build.toml
-        id: removed
-        run: |
-          REMOVED=""
-          # Parse the icons array from build.toml, tolerating multi-line lists
-          # and inline comments. Strip comments per-line first (so an inline
-          # comment cannot swallow later icons), then join, extract the bracket
-          # content, and split on commas.
-          ICONS=$(sed -n '/icons *= *\[/,/\]/p' build.toml | sed 's/#.*//' | tr -d '\n' | sed 's/.*\[\(.*\)\].*/\1/' | tr ',' '\n' | tr -d ' "')
-          while IFS= read -r name; do
-            [ -z "$name" ] && continue
-            if [ ! -f "icons/${name}.svg" ]; then
-              REMOVED="${REMOVED}- ${name}\n"
-            fi
-          done <<< "$ICONS"
-          echo "removed=$REMOVED" >> "$GITHUB_OUTPUT"
-
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v6
@@ -100,8 +83,6 @@ jobs:
             **Lucide tag:** `${{ steps.release.outputs.tag }}`
 
             **Icons updated:** $(ls icons/*.svg | wc -l) SVGs synced.
-
-            ${{ steps.removed.outputs.removed && format('**⚠️ Removed icons referenced in build.toml:**{0}', steps.removed.outputs.removed) || 'No referenced icons were removed.' }}
 
             Please review before merging.
           labels: dependencies

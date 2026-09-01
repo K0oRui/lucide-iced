@@ -1,18 +1,11 @@
 //! Compile-time tree-shaken [Lucide](https://lucide.dev) icons for the
 //! [Iced](https://iced.rs) GUI framework.
 //!
-//! Only the icons listed in [`build.toml`](https://docs.rs/lucide-iced/latest/lucide_iced/#build-config)
-//! are embedded into your binary. Each generates a type-safe function that returns
-//! an [`iced::widget::Svg`] widget, plus a constant with the raw SVG bytes for
-//! rendering through Iced's mesh path inside custom widgets.
-//!
-//! # Build config
-//!
-//! Edit `build.toml` in the crate root to choose which icons to include:
-//!
-//! ```toml
-//! icons = ["heart", "settings", "trash-2"]
-//! ```
+//! Every Lucide icon is available as a type-safe function that returns an
+//! [`iced::widget::Svg`] widget, plus a constant with the raw SVG bytes for
+//! rendering through Iced's mesh path inside custom widgets. Only the icons you
+//! actually reference are compiled into your binary (dead-code elimination
+//! strips the rest), so there is no runtime file read and no icon font required.
 //!
 //! # Usage
 //!
