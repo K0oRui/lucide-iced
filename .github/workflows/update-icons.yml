@@ -41,18 +41,49 @@ jobs:
         run: |
           TAG="${{ steps.release.outputs.tag }}"
           mkdir -p fonts
-          curl -sL "https://github.com/lucide-icons/lucide/releases/download/${TAG}/lucide.ttf" -o fonts/lucide.ttf
+          # The font ships inside a zip asset (e.g. lucide-font-1.38.0.zip),
+          # not as a bare lucide.ttf. Download and extract it.
+          curl -sL "https://github.com/lucide-icons/lucide/releases/download/${TAG}/lucide-font-${TAG}.zip" -o lucide-font.zip
+          unzip -o lucide-font.zip -d lucide-font-extracted
+          FONT=$(find lucide-font-extracted -name '*.ttf' | head -n 1)
+          if [ -z "$FONT" ]; then
+            echo "::error::No .ttf found in lucide-font-${TAG}.zip"
+            exit 1
+          fi
+          cp "$FONT" fonts/lucide.ttf
+          rm -rf lucide-font.zip lucide-font-extracted
           echo "Font size: $(stat -c%s fonts/lucide.ttf) bytes"
+
+      - name: Validate Lucide font
+        run: |
+          # A real TTF starts with the 0x00010000 signature and is far larger
+          # than an HTML error page. Fail loudly if the download was garbage.
+          if [ "$(head -c 4 fonts/lucide.ttf | xxd -p)" != "00010000" ]; then
+            echo "::error::fonts/lucide.ttf is not a valid TTF (bad signature)"
+            exit 1
+          fi
+          SIZE=$(stat -c%s fonts/lucide.ttf)
+          if [ "$SIZE" -lt 100000 ]; then
+            echo "::error::fonts/lucide.ttf is suspiciously small ($SIZE bytes)"
+            exit 1
+          fi
+          echo "Font validated: $SIZE bytes"
 
       - name: Detect removed icons referenced in build.toml
         id: removed
         run: |
           REMOVED=""
+          # Parse the icons array from build.toml, tolerating multi-line lists
+          # and inline comments. Strip comments per-line first (so an inline
+          # comment cannot swallow later icons), then join, extract the bracket
+          # content, and split on commas.
+          ICONS=$(sed -n '/icons *= *\[/,/\]/p' build.toml | sed 's/#.*//' | tr -d '\n' | sed 's/.*\[\(.*\)\].*/\1/' | tr ',' '\n' | tr -d ' "')
           while IFS= read -r name; do
+            [ -z "$name" ] && continue
             if [ ! -f "icons/${name}.svg" ]; then
               REMOVED="${REMOVED}- ${name}\n"
             fi
-          done < <(grep -oP '(?<=icons = \[).*?(?=\])' build.toml | tr ',' '\n' | tr -d ' "')
+          done <<< "$ICONS"
           echo "removed=$REMOVED" >> "$GITHUB_OUTPUT"
 
       - name: Create Pull Request
