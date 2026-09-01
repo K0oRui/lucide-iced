@@ -1,0 +1,4 @@
+# Icons to embed into the binary at compile time.
+# Only the icons listed here are compiled in (true tree-shaking).
+# Each name must have a matching file in `icons/<name>.svg`.
+icons = ["heart", "settings", "trash-2", "user", "search", "star"]

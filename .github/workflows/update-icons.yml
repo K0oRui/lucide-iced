@@ -1,0 +1,82 @@
+name: Update Lucide Icons
+
+on:
+  schedule:
+    # Daily at 03:00 UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-icons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch latest Lucide release
+        id: release
+        run: |
+          TAG=$(curl -s https://api.github.com/repos/lucide-icons/lucide/releases/latest | jq -r .tag_name)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Fetched Lucide tag: $TAG"
+
+      - name: Download icon SVGs
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          URL="https://github.com/lucide-icons/lucide/archive/refs/tags/${TAG}.tar.gz"
+          curl -sL "$URL" -o lucide.tar.gz
+          tar -xzf lucide.tar.gz
+          SRC="lucide-${TAG#v}/icons"
+          mkdir -p icons
+          cp "$SRC"/*.svg icons/
+          echo "Copied $(ls icons/*.svg | wc -l) SVGs"
+
+      - name: Download Lucide font
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          mkdir -p fonts
+          curl -sL "https://github.com/lucide-icons/lucide/releases/download/${TAG}/lucide.ttf" -o fonts/lucide.ttf
+          echo "Font size: $(stat -c%s fonts/lucide.ttf) bytes"
+
+      - name: Detect removed icons referenced in build.toml
+        id: removed
+        run: |
+          REMOVED=""
+          while IFS= read -r name; do
+            if [ ! -f "icons/${name}.svg" ]; then
+              REMOVED="${REMOVED}- ${name}\n"
+            fi
+          done < <(grep -oP '(?<=icons = \[).*?(?=\])' build.toml | tr ',' '\n' | tr -d ' "')
+          echo "removed=$REMOVED" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: update Lucide icons to ${{ steps.release.outputs.tag }}"
+          branch: "auto-update/lucide-${{ steps.release.outputs.tag }}"
+          delete-branch: true
+          title: "Update Lucide icons to ${{ steps.release.outputs.tag }}"
+          body: |
+            Automated update of vendored Lucide icons and font.
+
+            **Lucide tag:** `${{ steps.release.outputs.tag }}`
+
+            **Icons updated:** $(ls icons/*.svg | wc -l) SVGs synced.
+
+            ${{ steps.removed.outputs.removed && format('**⚠️ Removed icons referenced in build.toml:**{0}', steps.removed.outputs.removed) || 'No referenced icons were removed.' }}
+
+            Please review before merging.
+          labels: dependencies
+
+      - name: Report
+        run: |
+          if [ "${{ steps.cpr.outputs.pull-request-number }}" != "" ]; then
+            echo "PR opened: #${{ steps.cpr.outputs.pull-request-number }}"
+          else
+            echo "No changes detected; no PR opened."
+          fi
