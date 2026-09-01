@@ -3,7 +3,8 @@
 //!
 //! Only the icons listed in [`build.toml`](https://docs.rs/lucide-iced/latest/lucide_iced/#build-config)
 //! are embedded into your binary. Each generates a type-safe function that returns
-//! an [`iced::widget::Svg`] widget.
+//! an [`iced::widget::Svg`] widget, plus a constant with the raw SVG bytes for
+//! rendering through Iced's mesh path inside custom widgets.
 //!
 //! # Build config
 //!
@@ -41,13 +42,21 @@
 use iced::advanced::svg::Handle;
 use iced::widget::Svg;
 
-/// The generated per-icon functions.
+/// The generated per-icon functions and raw SVG bytes.
 ///
-/// Each function is named after its Lucide icon (kebab-case converted to
-/// snake_case) and returns an [`iced::widget::Svg`] widget.
-pub mod icon {
+/// [`icon`] contains one function per Lucide icon (kebab-case converted to
+/// snake_case) that returns an [`iced::widget::Svg`] widget. [`bytes`] contains
+/// the raw SVG bytes for each icon, for rendering through Iced's SVG mesh path
+/// inside custom widgets.
+pub mod generated {
     include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 }
+
+/// The generated per-icon SVG widget functions.
+pub use generated::icon;
+
+/// The generated per-icon raw SVG bytes.
+pub use generated::bytes;
 
 /// Builds an [`iced::widget::Svg`] widget from arbitrary SVG bytes.
 ///
@@ -87,6 +96,21 @@ mod tests {
         let _ = crate::icon::user();
         let _ = crate::icon::search();
         let _ = crate::icon::star();
+    }
+
+    #[test]
+    fn generated_bytes_are_valid_svg() {
+        for bytes in [
+            crate::bytes::HEART,
+            crate::bytes::SETTINGS,
+            crate::bytes::TRASH_2,
+            crate::bytes::USER,
+            crate::bytes::SEARCH,
+            crate::bytes::STAR,
+        ] {
+            let text = String::from_utf8_lossy(bytes);
+            assert!(text.contains("<svg"), "expected SVG markup, got: {text}");
+        }
     }
 
     #[test]

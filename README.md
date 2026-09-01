@@ -46,6 +46,19 @@ fn view() -> iced::Element<'static, ()> {
 Each icon name in `build.toml` must have a matching file at `icons/<name>.svg`. The
 build script fails with a clear message if one is missing.
 
+## Raw SVG bytes
+
+Every icon also exposes its raw SVG bytes as a constant, for rendering through
+Iced's SVG mesh path inside custom widgets (checkbox checks, undo/redo buttons,
+window controls, and so on):
+
+```rust
+let handle = iced::advanced::svg::Handle::from_memory(lucide_iced::bytes::CHECK);
+```
+
+The constants are named after their icon in `SCREAMING_SNAKE_CASE` (for example
+`bytes::UNDO_2`, `bytes::REDO_2`, `bytes::COPY`).
+
 ## Custom icons
 
 Render your own SVG through the library's rendering path:
