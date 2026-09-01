@@ -34,6 +34,8 @@ jobs:
           mkdir -p icons
           cp "$SRC"/*.svg icons/
           echo "Copied $(ls icons/*.svg | wc -l) SVGs"
+          # Remove the extracted repo so only icons/ and fonts/ changes are committed
+          rm -rf "lucide-${TAG#v}" lucide.tar.gz
 
       - name: Download Lucide font
         run: |
