@@ -13,7 +13,7 @@ use iced::advanced::svg;
 use iced::advanced::widget::Tree;
 use iced::advanced::{Layout, Widget};
 use iced::mouse;
-use iced::{Element, Length, Rectangle, Size};
+use iced::{Element, Length, Radians, Rectangle, Size};
 
 /// An icon rendered as an SVG that inherits the surrounding text color.
 ///
@@ -23,6 +23,8 @@ use iced::{Element, Length, Rectangle, Size};
 pub struct ThemedIcon<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer> {
     handle: svg::Handle,
     size: f32,
+    rotation: Radians,
+    opacity: f32,
     _phantom: std::marker::PhantomData<&'a (Message, Theme, Renderer)>,
 }
 
@@ -37,8 +39,26 @@ where
         Self {
             handle,
             size,
+            rotation: Radians(0.0),
+            opacity: 1.0,
             _phantom: std::marker::PhantomData,
         }
+    }
+
+    /// Sets the rotation of the icon, in radians, around its center.
+    ///
+    /// This is useful for animating an icon by advancing the angle each frame
+    /// from your app's `update` loop.
+    pub fn rotation(mut self, rotation: impl Into<Radians>) -> Self {
+        self.rotation = rotation.into();
+        self
+    }
+
+    /// Sets the opacity of the icon, from `0.0` (fully transparent) to `1.0`
+    /// (fully opaque).
+    pub fn opacity(mut self, opacity: impl Into<f32>) -> Self {
+        self.opacity = opacity.into();
+        self
     }
 }
 
@@ -77,8 +97,8 @@ where
             svg::Svg {
                 handle: self.handle.clone(),
                 color: Some(style.text_color),
-                rotation: iced::Radians(0.0),
-                opacity: 1.0,
+                rotation: self.rotation,
+                opacity: self.opacity,
             },
             bounds,
             *viewport,
@@ -108,11 +128,15 @@ where
 /// used anywhere an `Element<'_, Message>` is expected without forcing
 /// `Message: 'static`.
 ///
-/// # Example
+/// For rotation or opacity, build a [`ThemedIcon`] directly and chain the
+/// builder methods:
 ///
 /// ```no_run
+/// let handle = iced::advanced::svg::Handle::from_memory(lucide_iced::bytes::HEART);
 /// let icon: iced::Element<'static, ()> =
-///     lucide_iced::themed_icon(lucide_iced::bytes::HEART, 16.0);
+///     lucide_iced::ThemedIcon::new(handle, 16.0)
+///         .rotation(iced::Radians(0.5))
+///         .into();
 /// ```
 pub fn themed_icon<'a, Message: 'a>(
     bytes: impl Into<std::borrow::Cow<'static, [u8]>>,
@@ -120,4 +144,43 @@ pub fn themed_icon<'a, Message: 'a>(
 ) -> Element<'a, Message> {
     let handle = svg::Handle::from_memory(bytes);
     ThemedIcon::new(handle, size).into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn handle() -> svg::Handle {
+        svg::Handle::from_memory(
+            b"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'></svg>".as_slice(),
+        )
+    }
+
+    #[test]
+    fn new_defaults_to_no_rotation_and_full_opacity() {
+        let icon = ThemedIcon::<(), iced::Theme, iced::Renderer>::new(handle(), 16.0);
+        assert_eq!(icon.rotation, Radians(0.0));
+        assert_eq!(icon.opacity, 1.0);
+    }
+
+    #[test]
+    fn rotation_builder_sets_radians() {
+        let icon = ThemedIcon::<(), iced::Theme, iced::Renderer>::new(handle(), 16.0)
+            .rotation(Radians(1.5));
+        assert_eq!(icon.rotation, Radians(1.5));
+    }
+
+    #[test]
+    fn opacity_builder_sets_value() {
+        let icon = ThemedIcon::<(), iced::Theme, iced::Renderer>::new(handle(), 16.0).opacity(0.5);
+        assert_eq!(icon.opacity, 0.5);
+    }
+
+    #[test]
+    fn themed_icon_returns_element() {
+        let bytes: &'static [u8] =
+            b"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'></svg>";
+        let element: Element<'static, ()> = themed_icon(bytes, 16.0);
+        let _ = element;
+    }
 }

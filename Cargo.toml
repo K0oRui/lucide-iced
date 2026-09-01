@@ -1,6 +1,6 @@
 [package]
 name = "lucide-iced"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 rust-version = "1.88"
 description = "Compile-time tree-shaken Lucide icons for the Iced GUI framework"

@@ -30,7 +30,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-lucide-iced = "0.2"
+lucide-iced = "0.3"
 ```
 
 Then use the icons in your `view()`:
@@ -93,6 +93,19 @@ let icon: iced::Element<'static, ()> =
 The second argument is the icon size in pixels. It accepts any bytes that can
 become a `'static` SVG handle, so you can pass an owned `Vec<u8>` as well.
 
+For rotation or opacity, build a `ThemedIcon` directly and chain the builder
+methods. Rotation is in radians and is useful for animating an icon by advancing
+the angle each frame from your `update` loop:
+
+```rust
+let handle = iced::advanced::svg::Handle::from_memory(lucide_iced::bytes::HEART);
+let icon: iced::Element<'static, ()> =
+    lucide_iced::ThemedIcon::new(handle, 16.0)
+        .rotation(iced::Radians(0.5))
+        .opacity(0.8)
+        .into();
+```
+
 ## Mirroring icons
 
 Iced's `Svg` widget has no flip or scale-axis API. `mirror_svg` wraps the
@@ -120,10 +133,10 @@ Enable the `build` feature and add `lucide-iced` as a build-dependency:
 
 ```toml
 [dependencies]
-lucide-iced = "0.2"
+lucide-iced = "0.3"
 
 [build-dependencies]
-lucide-iced = { version = "0.2", features = ["build"] }
+lucide-iced = { version = "0.3", features = ["build"] }
 ```
 
 In your `build.rs`, point at a folder of SVGs:
@@ -167,7 +180,7 @@ Enable the `font` feature to bundle the Lucide TTF:
 
 ```toml
 [dependencies]
-lucide-iced = { version = "0.2", features = ["font"] }
+lucide-iced = { version = "0.3", features = ["font"] }
 ```
 
 Register the font with Iced and render icons as text glyphs:
