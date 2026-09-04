@@ -13,8 +13,6 @@ build = "build.rs"
 include = [
     "src/**",
     "build.rs",
-    "icons/**",
-    "fonts/**",
     "LICENSE",
     "README.md",
 ]
@@ -22,9 +20,13 @@ include = [
 [dependencies]
 iced = { version = "0.14", default-features = false, features = ["svg", "advanced", "thread-pool"] }
 
+[build-dependencies]
+ureq = "3"
+flate2 = "1"
+tar = "0.4"
+
 [features]
 default = []
-font = []
 # Exposes the `build` module with `register_icons`, for use as a build-dependency.
 build = []
 

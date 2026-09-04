@@ -10,6 +10,23 @@ Every Lucide icon is available as a type-safe function that returns an
 into your binary (dead-code elimination strips the rest), so there is no runtime
 file read and no icon font required.
 
+## How it works
+
+At build time, `build.rs` queries the GitHub API for the latest Lucide release,
+downloads the icon SVGs, and generates a Rust module with one function per icon.
+The icons are **not** vendored in this crate — they are fetched fresh on every
+build, so you always get the newest Lucide icons without waiting for a new
+`lucide-iced` release.
+
+This means:
+
+- **Always up to date.** New, changed, and removed Lucide icons are picked up
+  automatically on your next build.
+- **Requires network access.** The first build (or a clean build) downloads the
+  Lucide tarball. Subsequent incremental builds reuse the cached copy.
+- **No crate bumps.** You never need to upgrade `lucide-iced` just to get new
+  icons.
+
 ## Features
 
 - Tree-shaken. Only referenced SVGs are compiled in via `include_bytes!`.
@@ -19,10 +36,7 @@ file read and no icon font required.
 - Custom icons. Drop SVGs in a folder and they are auto-registered as
   `custom_icons::icon::*()` functions, or render a single SVG at runtime with
   `svg_from_bytes`.
-- Optional font. Bundle the Lucide TTF for text-glyph rendering (opt-in `font`
-  feature).
-- Auto-updating. A GitHub Action keeps the vendored icons in sync with upstream
-  Lucide.
+- Auto-updating. Icons are fetched from the latest Lucide release at build time.
 
 ## Usage
 
@@ -45,10 +59,9 @@ fn view() -> iced::Element<'static, ()> {
 
 ### Which icons are available
 
-Every Lucide icon is available. The full set is generated from the `icons/`
-folder at build time, and only the icons you reference are compiled into your
-binary. To find an icon name, browse the [Lucide icon list](https://lucide.dev/icons)
-or the `icons/` folder in this crate.
+Every Lucide icon is available. The full set is generated from the latest Lucide
+release at build time, and only the icons you reference are compiled into your
+binary. To find an icon name, browse the [Lucide icon list](https://lucide.dev/icons).
 
 ### Icon names that collide with Rust keywords
 
@@ -173,33 +186,6 @@ build system. It accepts a `&'static [u8]` or an owned `Vec<u8>`:
 ```rust
 let svg = lucide_iced::svg_from_bytes(b"<svg .../>".as_slice());
 ```
-
-## Font rendering (optional)
-
-Enable the `font` feature to bundle the Lucide TTF:
-
-```toml
-[dependencies]
-lucide-iced = { version = "0.3", features = ["font"] }
-```
-
-Register the font with Iced and render icons as text glyphs:
-
-```rust
-let settings = iced::Settings {
-    fonts: vec![lucide_iced::LUCIDE_FONT_BYTES.into()],
-    ..Default::default()
-};
-```
-
-The font is a single binary file and cannot be tree-shaken. It is only embedded
-when the `font` feature is enabled, and it adds about 850 KB to your binary.
-
-## Auto-updating icons
-
-The included GitHub Action (`.github/workflows/update-icons.yml`) runs daily and
-on manual dispatch. It fetches the latest Lucide release, syncs `icons/` and
-`fonts/lucide.ttf`, and opens a pull request for review.
 
 ## Minimum supported Rust version
 

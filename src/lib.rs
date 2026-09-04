@@ -24,11 +24,6 @@
 //! ```no_run
 //! let svg = lucide_iced::svg_from_bytes(b"<svg .../>".as_slice());
 //! ```
-//!
-//! # Font rendering
-//!
-//! Enable the `font` feature to bundle the Lucide TTF and render icons as text
-//! glyphs. Register the font with Iced, then use the glyph codepoints.
 
 #![forbid(unsafe_code)]
 
@@ -164,27 +159,13 @@ fn extract_view_box(text: &str) -> Option<(f32, f32)> {
     }
 }
 
-/// The Lucide icon font bytes, available when the `font` feature is enabled.
-///
-/// Register it with Iced to render icons as text glyphs:
-///
-/// ```no_run
-/// # #[cfg(feature = "font")]
-/// let settings = iced::Settings {
-///     fonts: vec![lucide_iced::LUCIDE_FONT_BYTES.into()],
-///     ..Default::default()
-/// };
-/// ```
-#[cfg(feature = "font")]
-pub const LUCIDE_FONT_BYTES: &[u8] = include_bytes!("../fonts/lucide.ttf");
-
 #[cfg(test)]
 mod tests {
     #[test]
     fn generated_icons_construct() {
         let _ = crate::icon::heart();
         let _ = crate::icon::settings();
-        let _ = crate::icon::trash_2();
+        let _ = crate::icon::trash();
         let _ = crate::icon::user();
         let _ = crate::icon::search();
         let _ = crate::icon::star();
@@ -195,7 +176,7 @@ mod tests {
         for bytes in [
             crate::bytes::HEART,
             crate::bytes::SETTINGS,
-            crate::bytes::TRASH_2,
+            crate::bytes::TRASH,
             crate::bytes::USER,
             crate::bytes::SEARCH,
             crate::bytes::STAR,
@@ -259,22 +240,6 @@ mod tests {
         // Invalid UTF-8 must be returned unchanged rather than corrupted.
         let bytes = [0xff, 0xfe, 0x00, 0x01];
         assert_eq!(crate::mirror_bytes(&bytes), bytes);
-    }
-
-    #[cfg(feature = "font")]
-    #[test]
-    fn bundled_font_is_a_valid_ttf() {
-        // Guards against the CI font download silently producing garbage.
-        assert_eq!(
-            &crate::LUCIDE_FONT_BYTES[..4],
-            &[0x00, 0x01, 0x00, 0x00],
-            "fonts/lucide.ttf does not start with the TTF signature"
-        );
-        assert!(
-            crate::LUCIDE_FONT_BYTES.len() > 100_000,
-            "fonts/lucide.ttf is suspiciously small ({} bytes)",
-            crate::LUCIDE_FONT_BYTES.len()
-        );
     }
 
     #[test]

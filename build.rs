@@ -1,9 +1,9 @@
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 
-/// Rust keywords that cannot be used as bare identifiers. Icon names that
-/// snake-case into one of these must be emitted as raw identifiers (`r#...`).
+/// Rust keywords that cannot be used as bare identifiers.
 const RUST_KEYWORDS: &[&str] = &[
     "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for",
     "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
@@ -13,16 +13,8 @@ const RUST_KEYWORDS: &[&str] = &[
 ];
 
 fn main() {
-    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-
-    let icons_dir = manifest_dir.join("icons");
-    if !icons_dir.is_dir() {
-        panic!("icons directory not found at {}", icons_dir.display());
-    }
-
-    // Watch the whole folder so adding/removing/editing an SVG triggers a rebuild.
-    println!("cargo:rerun-if-changed={}", icons_dir.display());
+    let icons_dir = fetch_icons(&out_dir);
 
     let mut names: Vec<String> = fs::read_dir(&icons_dir)
         .unwrap_or_else(|e| {
@@ -55,16 +47,10 @@ fn main() {
     let mut seen: Vec<String> = Vec::new();
     for name in &names {
         let fn_name = to_snake_case(name);
-        // The bytes constant is derived from the unescaped snake name so it
-        // stays a plain identifier even when the function is a raw identifier.
         let const_name = name.replace('-', "_").to_uppercase();
 
-        // Detect collisions: two files mapping to the same identifier.
         if seen.contains(&fn_name) {
-            panic!(
-                "multiple SVGs in {} map to the generated identifier `{fn_name}`",
-                icons_dir.display()
-            );
+            panic!("multiple SVGs map to the generated identifier `{fn_name}`");
         }
         seen.push(fn_name.clone());
 
@@ -96,8 +82,117 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 }
 
-/// Converts a kebab-case icon name to a valid Rust identifier, escaping it as a
-/// raw identifier (`r#...`) when it collides with a Rust keyword.
+/// Fetches the latest Lucide release tag from the GitHub API.
+fn fetch_latest_version() -> String {
+    let response = ureq::get("https://api.github.com/repos/lucide-icons/lucide/releases/latest")
+        .header("Accept", "application/vnd.github+json")
+        .call()
+        .unwrap_or_else(|e| panic!("failed to query GitHub API for latest Lucide release: {e}"));
+
+    let mut reader = response.into_body().into_reader();
+    let mut body = String::new();
+    reader
+        .read_to_string(&mut body)
+        .unwrap_or_else(|e| panic!("failed to read GitHub API response: {e}"));
+
+    // Parse tag_name from JSON without pulling in serde_json.
+    let marker = "\"tag_name\":\"";
+    let start = body.find(marker).unwrap_or_else(|| {
+        panic!(
+            "GitHub API response missing tag_name field:\n{}",
+            &body[..body.len().min(500)]
+        )
+    }) + marker.len();
+    let end = body[start..].find('"').unwrap_or_else(|| {
+        panic!(
+            "GitHub API response has unparseable tag_name:\n{}",
+            &body[..body.len().min(500)]
+        )
+    });
+    body[start..start + end].to_string()
+}
+
+/// Downloads the latest Lucide release tarball, extracts only the SVG icons,
+/// and returns the path to the extracted icons directory.
+fn fetch_icons(out_dir: &PathBuf) -> PathBuf {
+    let icons_dir = out_dir.join("lucide-icons");
+
+    // Skip download if already extracted (incremental builds).
+    if icons_dir.is_dir()
+        && fs::read_dir(&icons_dir)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false)
+    {
+        return icons_dir;
+    }
+
+    let version = fetch_latest_version();
+    let tarball = out_dir.join("lucide.tar.gz");
+    let url = format!("https://github.com/lucide-icons/lucide/archive/refs/tags/{version}.tar.gz");
+
+    eprintln!("lucide-iced: downloading Lucide {version} icons...");
+
+    // Use the `ureq` crate for HTTP and `flate2`+`tar` for extraction.
+    // Both are build-dependencies declared in Cargo.toml.
+    let response = ureq::get(&url)
+        .call()
+        .unwrap_or_else(|e| panic!("failed to download Lucide {version}: {e}"));
+
+    let mut reader = response.into_body().into_reader();
+    let mut body = Vec::new();
+    reader
+        .read_to_end(&mut body)
+        .unwrap_or_else(|e| panic!("failed to read Lucide download: {e}"));
+
+    fs::write(&tarball, &body).unwrap_or_else(|e| panic!("failed to write tarball: {e}"));
+
+    // Decompress gzip and extract tar, filtering for SVG files only.
+    let tar_gz = fs::File::open(&tarball).unwrap_or_else(|e| panic!("failed to open tarball: {e}"));
+    let dec = flate2::read::GzDecoder::new(tar_gz);
+    let mut archive = tar::Archive::new(dec);
+
+    fs::create_dir_all(&icons_dir).unwrap_or_else(|e| panic!("failed to create icons dir: {e}"));
+
+    let prefix = format!("lucide-{version}/icons/");
+
+    for entry in archive
+        .entries()
+        .unwrap_or_else(|e| panic!("failed to read tar entries: {e}"))
+    {
+        let mut entry = entry.unwrap_or_else(|e| panic!("failed to read tar entry: {e}"));
+        let path = entry.path().unwrap().into_owned();
+
+        let path_str = path.to_string_lossy().to_string();
+        if !path_str.starts_with(&prefix) {
+            continue;
+        }
+
+        let file_name = match path_str.strip_prefix(&prefix) {
+            Some(name) => name,
+            None => continue,
+        };
+
+        if !file_name.ends_with(".svg") || file_name.contains('/') {
+            continue;
+        }
+
+        let dest = icons_dir.join(file_name);
+        entry
+            .unpack(&dest)
+            .unwrap_or_else(|e| panic!("failed to extract {file_name}: {e}"));
+    }
+
+    // Clean up tarball.
+    let _ = fs::remove_file(&tarball);
+
+    let count = fs::read_dir(&icons_dir)
+        .map(|d| d.filter_map(|e| e.ok()).count())
+        .unwrap_or(0);
+    eprintln!("lucide-iced: extracted {count} icons from Lucide {version}");
+
+    icons_dir
+}
+
 fn to_snake_case(name: &str) -> String {
     let snake = name.replace('-', "_");
     if RUST_KEYWORDS.contains(&snake.as_str()) {
