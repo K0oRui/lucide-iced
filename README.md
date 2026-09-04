@@ -44,7 +44,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-lucide-iced = "0.3"
+lucide-iced = "0.4"
 ```
 
 Then use the icons in your `view()`:
@@ -146,10 +146,10 @@ Enable the `build` feature and add `lucide-iced` as a build-dependency:
 
 ```toml
 [dependencies]
-lucide-iced = "0.3"
+lucide-iced = "0.4"
 
 [build-dependencies]
-lucide-iced = { version = "0.3", features = ["build"] }
+lucide-iced = { version = "0.4", features = ["build"] }
 ```
 
 In your `build.rs`, point at a folder of SVGs:
@@ -189,7 +189,7 @@ let svg = lucide_iced::svg_from_bytes(b"<svg .../>".as_slice());
 
 ## Minimum supported Rust version
 
-`rust-version` is `1.88`.
+`rust-version` is `1.85`.
 
 ## License
 

@@ -1,8 +1,8 @@
 [package]
 name = "lucide-iced"
-version = "0.3.0"
-edition = "2021"
-rust-version = "1.88"
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.85"
 description = "Compile-time tree-shaken Lucide icons for the Iced GUI framework"
 license = "ISC"
 repository = "https://github.com/K0oRui/lucide-iced"
@@ -21,8 +21,8 @@ include = [
 iced = { version = "0.14", default-features = false, features = ["svg", "advanced", "thread-pool"] }
 
 [build-dependencies]
-ureq = "3"
-flate2 = "1"
+ureq = "3.4"
+flate2 = "1.1"
 tar = "0.4"
 
 [features]
