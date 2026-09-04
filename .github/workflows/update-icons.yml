@@ -32,6 +32,7 @@ jobs:
           tar -xzf lucide.tar.gz
           SRC="lucide-${TAG#v}/icons"
           mkdir -p icons
+          rm -f icons/*.svg
           cp "$SRC"/*.svg icons/
           echo "Copied $(ls icons/*.svg | wc -l) SVGs"
           # Remove the extracted repo so only icons/ and fonts/ changes are committed
@@ -87,10 +88,17 @@ jobs:
             Please review before merging.
           labels: dependencies
 
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        run: gh pr merge "${{ steps.cpr.outputs.pull-request-number }}" --auto --merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Report
         run: |
           if [ "${{ steps.cpr.outputs.pull-request-number }}" != "" ]; then
             echo "PR opened: #${{ steps.cpr.outputs.pull-request-number }}"
+            echo "Auto-merge enabled — will merge once checks pass."
           else
             echo "No changes detected; no PR opened."
           fi
